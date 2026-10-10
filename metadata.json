@@ -1,5 +1,5 @@
 {
-  "name": "C9-SHANICE",
+  "name": "C9-SHANICE AI Agent",
   "description": "Autonomous Mobile AI Agent inspired by Stonic AI for device diagnostics, terminal automation, smart workflows, and mobile command execution.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

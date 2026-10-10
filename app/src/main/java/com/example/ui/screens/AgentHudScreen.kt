@@ -31,12 +31,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.automirrored.filled.VolumeMute
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.HourglassEmpty
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
@@ -93,7 +96,11 @@ import java.util.Locale
 @Composable
 fun AgentHudScreen(
     viewModel: AgentViewModel,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onOpenWhatsApp: () -> Unit = {},
+    onOpenRemote: () -> Unit = {},
+    onReplaySplash: () -> Unit = {},
+    onOpenGuidelines: () -> Unit = {}
 ) {
     val agentState by viewModel.agentState.collectAsState()
     val activeMission by viewModel.activeMission.collectAsState()
@@ -148,7 +155,7 @@ fun AgentHudScreen(
                         Column {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = "C9-SHANICE",
+                                    text = "C9-SHANICE AI Agent",
                                     style = MaterialTheme.typography.titleMedium,
                                     color = TextPrimary,
                                     fontWeight = FontWeight.Bold,
@@ -185,10 +192,12 @@ fun AgentHudScreen(
                                 }
                             }
                             Text(
-                                text = "Autonomous Mobile Agent Core",
+                                text = "Developer: C9-SHANICE Exploiter",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = TextSecondary,
-                                fontSize = 11.sp
+                                color = NeonPurple,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 11.sp,
+                                fontFamily = FontFamily.Monospace
                             )
                             Text(
                                 text = "Protocol: Stonic AI Mobile Hybrid",
@@ -201,6 +210,26 @@ fun AgentHudScreen(
                     }
 
                     Row {
+                        IconButton(
+                            onClick = onOpenGuidelines,
+                            modifier = Modifier.testTag("open_guidelines_dialog_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = "View Guidelines & Dev Info",
+                                tint = NeonCyan
+                            )
+                        }
+                        IconButton(
+                            onClick = onReplaySplash,
+                            modifier = Modifier.testTag("replay_splash_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Terminal,
+                                contentDescription = "View Animated Splash & Dev Credentials",
+                                tint = NeonPurple
+                            )
+                        }
                         IconButton(
                             onClick = { viewModel.toggleTts() },
                             modifier = Modifier.testTag("toggle_voice_button")
@@ -221,6 +250,172 @@ fun AgentHudScreen(
                                 tint = NeonCyan
                             )
                         }
+                    }
+                }
+            }
+        }
+
+        // WhatsApp AI Agent Quick Access Card
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onOpenWhatsApp() }
+                    .testTag("hud_whatsapp_agent_banner"),
+                colors = CardDefaults.cardColors(containerColor = CyberSurface),
+                shape = RoundedCornerShape(16.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF25D366).copy(alpha = 0.5f))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF25D366).copy(alpha = 0.2f))
+                                .border(1.5.dp, Color(0xFF25D366), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Chat,
+                                contentDescription = "WhatsApp AI",
+                                tint = Color(0xFF25D366),
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "WHATSAPP AI AGENT",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = TextPrimary
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(Color(0xFF25D366).copy(alpha = 0.2f))
+                                        .padding(horizontal = 5.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "24/7 ACTIVE",
+                                        fontSize = 8.sp,
+                                        color = Color(0xFF25D366),
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                            Text(
+                                text = "Auto-Responder • Chat Sandbox • API Gateway",
+                                fontSize = 11.sp,
+                                color = TextSecondary
+                            )
+                        }
+                    }
+
+                    Button(
+                        onClick = onOpenWhatsApp,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF25D366),
+                            contentColor = Color(0xFF001A22)
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Text("LAUNCH", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+
+        // AnyDesk / AnyLink Remote Mobile Control Quick Access Card
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onOpenRemote() }
+                    .testTag("hud_remote_link_banner"),
+                colors = CardDefaults.cardColors(containerColor = CyberSurface),
+                shape = RoundedCornerShape(16.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, NeonCyan.copy(alpha = 0.5f))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(NeonCyan.copy(alpha = 0.2f))
+                                .border(1.5.dp, NeonCyan, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Devices,
+                                contentDescription = "AnyLink Remote",
+                                tint = NeonCyan,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "ANYLINK REMOTE CONTROL",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = TextPrimary
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(NeonCyan.copy(alpha = 0.2f))
+                                        .padding(horizontal = 5.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "ANYDESK P2P",
+                                        fontSize = 8.sp,
+                                        color = NeonCyan,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                            Text(
+                                text = "Remote Mobile Control • IP / Code Link • File Drop",
+                                fontSize = 11.sp,
+                                color = TextSecondary
+                            )
+                        }
+                    }
+
+                    Button(
+                        onClick = onOpenRemote,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = NeonCyan,
+                            contentColor = Color(0xFF001A22)
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Text("CONNECT", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }

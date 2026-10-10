@@ -7,6 +7,16 @@ import com.example.agent.AgentExecutor
 import com.example.agent.AppLauncherManager
 import com.example.agent.DeviceToolManager
 import com.example.agent.InstalledAppInfo
+import com.example.agent.RemoteConnectionState
+import com.example.agent.RemoteDeviceManager
+import com.example.agent.RemoteRole
+import com.example.agent.RemoteSharedFile
+import com.example.agent.WhatsAppApiProvider
+import com.example.agent.WhatsAppBotManager
+import com.example.agent.WhatsAppPersona
+import com.example.data.database.WhatsAppConfigEntity
+import com.example.data.database.WhatsAppRuleEntity
+import com.example.data.database.WhatsAppMessageLog
 import com.example.service.FloatingAgentService
 import android.content.Context
 import android.content.Intent
@@ -37,6 +47,14 @@ data class ChatMessage(
     val timestamp: Long = System.currentTimeMillis()
 )
 
+data class WhatsAppSimChatMessage(
+    val id: Long = System.currentTimeMillis() + (0..999).random(),
+    val sender: String, // "client" or "bot"
+    val text: String,
+    val reasoning: String = "",
+    val timestamp: Long = System.currentTimeMillis()
+)
+
 class AgentViewModel(application: Application) : AndroidViewModel(application) {
 
     val toolManager = DeviceToolManager(application)
@@ -44,12 +62,55 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
     val speaker = AgentVoiceSpeaker(application)
     private val database = AgentDatabase.getDatabase(application)
     private var geminiApi = GeminiAgentApi()
+    val whatsAppBot = WhatsAppBotManager(application, geminiApi)
+    val remoteDevice = RemoteDeviceManager(application, toolManager, appLauncher, speaker)
 
     private val _installedApps = MutableStateFlow<List<InstalledAppInfo>>(emptyList())
     val installedApps: StateFlow<List<InstalledAppInfo>> = _installedApps.asStateFlow()
 
     private val _isFloatingOverlayActive = MutableStateFlow(false)
     val isFloatingOverlayActive: StateFlow<Boolean> = _isFloatingOverlayActive.asStateFlow()
+
+    private val _whatsAppRules = MutableStateFlow<List<WhatsAppRuleEntity>>(emptyList())
+    val whatsAppRules: StateFlow<List<WhatsAppRuleEntity>> = _whatsAppRules.asStateFlow()
+
+    private val _whatsAppLogs = MutableStateFlow<List<WhatsAppMessageLog>>(emptyList())
+    val whatsAppLogs: StateFlow<List<WhatsAppMessageLog>> = _whatsAppLogs.asStateFlow()
+
+    private val _whatsAppApiKey = MutableStateFlow("")
+    val whatsAppApiKey: StateFlow<String> = _whatsAppApiKey.asStateFlow()
+
+    private val _whatsAppPhoneNumberId = MutableStateFlow("")
+    val whatsAppPhoneNumberId: StateFlow<String> = _whatsAppPhoneNumberId.asStateFlow()
+
+    private val _whatsAppWebhookUrl = MutableStateFlow("")
+    val whatsAppWebhookUrl: StateFlow<String> = _whatsAppWebhookUrl.asStateFlow()
+
+    private val _whatsAppProvider = MutableStateFlow(WhatsAppApiProvider.LOCAL_SMART_AI)
+    val whatsAppProvider: StateFlow<WhatsAppApiProvider> = _whatsAppProvider.asStateFlow()
+
+    private val _whatsAppPersona = MutableStateFlow(WhatsAppPersona.CUSTOMER_SUPPORT)
+    val whatsAppPersona: StateFlow<WhatsAppPersona> = _whatsAppPersona.asStateFlow()
+
+    private val _whatsAppCustomPrompt = MutableStateFlow("")
+    val whatsAppCustomPrompt: StateFlow<String> = _whatsAppCustomPrompt.asStateFlow()
+
+    private val _isWhatsAppAutoReply = MutableStateFlow(true)
+    val isWhatsAppAutoReply: StateFlow<Boolean> = _isWhatsAppAutoReply.asStateFlow()
+
+    private val _whatsAppApiStatus = MutableStateFlow("Local Smart Engine Active (Ready for Custom Key)")
+    val whatsAppApiStatus: StateFlow<String> = _whatsAppApiStatus.asStateFlow()
+
+    private val _simulatedChatMessages = MutableStateFlow<List<WhatsAppSimChatMessage>>(
+        listOf(
+            WhatsAppSimChatMessage(
+                sender = "bot",
+                text = "Assalam-o-Alaikum! C9-SHANICE WhatsApp AI Agent active hai. Niche quick buttons ya text likh kar test karein.",
+                reasoning = "System Init"
+            )
+        )
+    )
+    val simulatedChatMessages: StateFlow<List<WhatsAppSimChatMessage>> = _simulatedChatMessages.asStateFlow()
 
     private val _agentState = MutableStateFlow(AgentState.IDLE)
     val agentState: StateFlow<AgentState> = _agentState.asStateFlow()
@@ -117,6 +178,68 @@ print("System optimization complete.")
                 _memories.value = it
             }
         }
+        viewModelScope.launch {
+            database.whatsAppDao().getAllRules().collectLatest { rules ->
+                _whatsAppRules.value = rules
+                if (rules.isEmpty()) {
+                    loadDefaultWhatsAppBusinessRules()
+                }
+            }
+        }
+        viewModelScope.launch {
+            database.whatsAppDao().getAllLogs().collectLatest {
+                _whatsAppLogs.value = it
+            }
+        }
+        viewModelScope.launch {
+            database.whatsAppDao().getConfig().collectLatest { config ->
+                val buildKey = try {
+                    com.example.BuildConfig.WHATSAPP_API_KEY
+                } catch (e: Exception) {
+                    ""
+                }
+                val effectiveKey = if (config != null && config.apiKey.isNotBlank()) config.apiKey else buildKey
+
+                _whatsAppApiKey.value = effectiveKey
+                whatsAppBot.customApiKey = effectiveKey
+
+                if (config != null) {
+                    _whatsAppPhoneNumberId.value = config.phoneNumberId
+                    whatsAppBot.phoneNumberId = config.phoneNumberId
+
+                    _whatsAppWebhookUrl.value = config.webhookUrl
+                    whatsAppBot.webhookUrl = config.webhookUrl
+
+                    val prov = if (config.provider == WhatsAppApiProvider.LOCAL_SMART_AI.id && effectiveKey.isNotBlank()) {
+                        WhatsAppApiProvider.META_CLOUD_API
+                    } else {
+                        WhatsAppApiProvider.fromId(config.provider)
+                    }
+                    _whatsAppProvider.value = prov
+                    whatsAppBot.apiProvider = prov
+
+                    val pers = WhatsAppPersona.fromName(config.persona)
+                    _whatsAppPersona.value = pers
+                    whatsAppBot.selectedPersona = pers
+
+                    _whatsAppCustomPrompt.value = config.customBusinessPrompt
+                    whatsAppBot.customBusinessPrompt = config.customBusinessPrompt
+
+                    _isWhatsAppAutoReply.value = config.isAutoReplyEnabled
+                    whatsAppBot.isAutoReplyActive = config.isAutoReplyEnabled
+
+                    _whatsAppApiStatus.value = if (effectiveKey.isNotBlank()) {
+                        "Meta WhatsApp Cloud API Active (Token Connected)"
+                    } else {
+                        "Local Smart AI Bridge Active (Ready for Custom Key)"
+                    }
+                } else if (effectiveKey.isNotBlank()) {
+                    _whatsAppProvider.value = WhatsAppApiProvider.META_CLOUD_API
+                    whatsAppBot.apiProvider = WhatsAppApiProvider.META_CLOUD_API
+                    _whatsAppApiStatus.value = "Meta WhatsApp Cloud API Active (Token Connected)"
+                }
+            }
+        }
 
         // Initialize terminal with welcome banner
         viewModelScope.launch {
@@ -154,6 +277,37 @@ print("System optimization complete.")
         _chatMessages.value = _chatMessages.value + ChatMessage(sender = "user", text = command)
 
         viewModelScope.launch {
+            // WhatsApp Commands
+            if (lower.contains("whatsapp auto reply") || lower.contains("whatsapp autoreply") || lower.contains("whatsapp bot")) {
+                val turnOn = !lower.contains("off") && !lower.contains("band") && !lower.contains("stop")
+                toggleWhatsAppAutoReply(turnOn)
+                val msg = if (turnOn) "WhatsApp Auto-Reply agent activated." else "WhatsApp Auto-Reply paused."
+                _chatMessages.value = _chatMessages.value + ChatMessage(sender = "shanice", text = "✓ $msg")
+                speaker.speak(msg)
+                return@launch
+            }
+
+            // Remote Device / AnyDesk Mobile Commands
+            if (lower.contains("remote control") || lower.contains("anydesk") || lower.contains("remote link") || lower.contains("remote host")) {
+                if (lower.contains("host") || lower.contains("share")) {
+                    remoteDevice.startHostMode()
+                    val msg = "Remote Host mode active. Device Code: ${remoteDevice.myDeviceCode.value}"
+                    _chatMessages.value = _chatMessages.value + ChatMessage(sender = "shanice", text = "✓ $msg")
+                    return@launch
+                } else {
+                    remoteDevice.startSandboxConnection()
+                    val msg = "Connected to Remote Device sandbox. Ready for control."
+                    _chatMessages.value = _chatMessages.value + ChatMessage(sender = "shanice", text = "✓ $msg")
+                    return@launch
+                }
+            }
+
+            if (lower.contains("vibrate remote") || lower.contains("ring remote")) {
+                remoteDevice.sendRemoteVibrationAlert()
+                _chatMessages.value = _chatMessages.value + ChatMessage(sender = "shanice", text = "✓ Triggered remote phone alert.")
+                return@launch
+            }
+
             // 1. App Launching / System Settings
             if (lower.startsWith("open ") || lower.startsWith("launch ") || lower.startsWith("start ") ||
                 lower.endsWith(" kholo") || lower.endsWith(" chalao") || lower.contains("open karo") ||
@@ -494,8 +648,272 @@ console.log("JSON Payload Verified: 200 OK");
         }
     }
 
+    // === WHATSAPP AI AGENT METHODS ===
+
+    fun openDirectWhatsAppChat(number: String, message: String): Pair<Boolean, String> {
+        val res = whatsAppBot.openDirectChat(number, message)
+        if (res.first) speaker.speak("Opening WhatsApp chat.")
+        return res
+    }
+
+    fun shareToWhatsApp(message: String) {
+        whatsAppBot.shareMessageToWhatsApp(message)
+    }
+
+    fun addWhatsAppRule(keyword: String, response: String) {
+        viewModelScope.launch {
+            database.whatsAppDao().insertRule(
+                WhatsAppRuleEntity(
+                    keyword = keyword.trim(),
+                    response = response.trim(),
+                    isAiPowered = true,
+                    isEnabled = true
+                )
+            )
+        }
+    }
+
+    fun deleteWhatsAppRule(id: Long) {
+        viewModelScope.launch {
+            database.whatsAppDao().deleteRule(id)
+        }
+    }
+
+    fun toggleWhatsAppRule(id: Long, enabled: Boolean) {
+        viewModelScope.launch {
+            database.whatsAppDao().toggleRule(id, enabled)
+        }
+    }
+
+    fun loadDefaultWhatsAppBusinessRules() {
+        viewModelScope.launch {
+            val defaults = listOf(
+                Pair("salam", "Walaikum Assalam! C9-SHANICE WhatsApp AI Agent active hai. Main aapki kya madad kar sakta hoon?"),
+                Pair("price", "Assalam-o-Alaikum! Tamam products aur packages ki competitive rates available hain. Aap konsi specific item ya service ke mutaliq janna chahte hain?"),
+                Pair("order", "Order confirm karne ke liye apna Full Name, Item Name, Quantity aur Delivery Address yahan reply karein, hum foran process kareinge."),
+                Pair("cod", "Cash on Delivery (COD) available hai nationwide. Iske ilawa EasyPaisa, JazzCash aur Bank Transfer bhi accept kiye jaate hain."),
+                Pair("timing", "Hamara office timing Monday se Saturday 9:00 AM se 9:00 PM tak hai. WhatsApp AI Agent 24/7 active rehta hai."),
+                Pair("location", "Hamara main operational hub online 24/7 active hai nationwide delivery ke sath.")
+            )
+            defaults.forEach { (keyword, reply) ->
+                database.whatsAppDao().insertRule(
+                    WhatsAppRuleEntity(
+                        keyword = keyword,
+                        response = reply,
+                        isAiPowered = true,
+                        isEnabled = true
+                    )
+                )
+            }
+        }
+    }
+
+    fun clearWhatsAppLogs() {
+        viewModelScope.launch {
+            database.whatsAppDao().clearLogs()
+        }
+    }
+
+    fun clearWhatsAppSimulatedChat() {
+        _simulatedChatMessages.value = listOf(
+            WhatsAppSimChatMessage(
+                sender = "bot",
+                text = "Chat cleared. Send a message to test C9-SHANICE WhatsApp Bot.",
+                reasoning = "Reset"
+            )
+        )
+    }
+
+    fun simulateWhatsAppMessage(incomingText: String, senderName: String = "Client") {
+        if (incomingText.isBlank()) return
+        val userMsg = WhatsAppSimChatMessage(
+            sender = "client",
+            text = incomingText
+        )
+        _simulatedChatMessages.value = _simulatedChatMessages.value + userMsg
+
+        viewModelScope.launch {
+            // Determine reasoning badge
+            val lower = incomingText.lowercase(java.util.Locale.ROOT).trim()
+            val matchedRule = _whatsAppRules.value.firstOrNull { it.isEnabled && lower.contains(it.keyword.lowercase(java.util.Locale.ROOT).trim()) }
+            val reasoning = when {
+                matchedRule != null -> "Rule: \"${matchedRule.keyword}\""
+                _whatsAppCustomPrompt.value.isNotBlank() -> "Custom Business AI"
+                else -> "C9-SHANICE Local AI"
+            }
+
+            val reply = whatsAppBot.generateAiReply(incomingText, senderName, _whatsAppRules.value)
+
+            val botMsg = WhatsAppSimChatMessage(
+                sender = "bot",
+                text = reply,
+                reasoning = reasoning
+            )
+            _simulatedChatMessages.value = _simulatedChatMessages.value + botMsg
+
+            database.whatsAppDao().insertLog(
+                WhatsAppMessageLog(
+                    sender = senderName,
+                    incomingText = incomingText,
+                    replyText = reply,
+                    status = "SIMULATED-REPLY"
+                )
+            )
+            speaker.speak(reply)
+        }
+    }
+
+    fun saveWhatsAppConfig(
+        apiKey: String,
+        phoneNumberId: String,
+        webhookUrl: String,
+        provider: WhatsAppApiProvider,
+        persona: WhatsAppPersona,
+        customPrompt: String,
+        isAutoReply: Boolean
+    ) {
+        _whatsAppApiKey.value = apiKey
+        whatsAppBot.customApiKey = apiKey
+
+        _whatsAppPhoneNumberId.value = phoneNumberId
+        whatsAppBot.phoneNumberId = phoneNumberId
+
+        _whatsAppWebhookUrl.value = webhookUrl
+        whatsAppBot.webhookUrl = webhookUrl
+
+        _whatsAppProvider.value = provider
+        whatsAppBot.apiProvider = provider
+
+        _whatsAppPersona.value = persona
+        whatsAppBot.selectedPersona = persona
+
+        _whatsAppCustomPrompt.value = customPrompt
+        whatsAppBot.customBusinessPrompt = customPrompt
+
+        _isWhatsAppAutoReply.value = isAutoReply
+        whatsAppBot.isAutoReplyActive = isAutoReply
+
+        viewModelScope.launch {
+            database.whatsAppDao().saveConfig(
+                WhatsAppConfigEntity(
+                    id = 1,
+                    apiKey = apiKey,
+                    phoneNumberId = phoneNumberId,
+                    webhookUrl = webhookUrl,
+                    provider = provider.id,
+                    persona = persona.name,
+                    customBusinessPrompt = customPrompt,
+                    isAutoReplyEnabled = isAutoReply
+                )
+            )
+            _whatsAppApiStatus.value = "Settings Saved (${provider.displayName})"
+            speaker.speak("WhatsApp Agent configuration updated.")
+        }
+    }
+
+    fun testWhatsAppApiConnection() {
+        viewModelScope.launch {
+            _whatsAppApiStatus.value = "Testing connection..."
+            val (success, message) = whatsAppBot.testApiConnection()
+            _whatsAppApiStatus.value = message
+            speaker.speak(if (success) "Connection test successful." else "Connection test finished.")
+        }
+    }
+
+    fun setWhatsAppApiKey(key: String) {
+        _whatsAppApiKey.value = key
+        whatsAppBot.customApiKey = key
+        saveCurrentConfig()
+    }
+
+    fun setWhatsAppPersona(persona: WhatsAppPersona) {
+        _whatsAppPersona.value = persona
+        whatsAppBot.selectedPersona = persona
+        saveCurrentConfig()
+        speaker.speak("WhatsApp Persona set to ${persona.displayName}.")
+    }
+
+    fun toggleWhatsAppAutoReply(enabled: Boolean) {
+        _isWhatsAppAutoReply.value = enabled
+        whatsAppBot.isAutoReplyActive = enabled
+        saveCurrentConfig()
+        speaker.speak(if (enabled) "WhatsApp Auto-Reply active." else "WhatsApp Auto-Reply paused.")
+    }
+
+    private fun saveCurrentConfig() {
+        viewModelScope.launch {
+            database.whatsAppDao().saveConfig(
+                WhatsAppConfigEntity(
+                    id = 1,
+                    apiKey = _whatsAppApiKey.value,
+                    phoneNumberId = _whatsAppPhoneNumberId.value,
+                    webhookUrl = _whatsAppWebhookUrl.value,
+                    provider = _whatsAppProvider.value.id,
+                    persona = _whatsAppPersona.value.name,
+                    customBusinessPrompt = _whatsAppCustomPrompt.value,
+                    isAutoReplyEnabled = _isWhatsAppAutoReply.value
+                )
+            )
+        }
+    }
+
+    // === ANYDESK REMOTE DEVICE CONTROLLER METHODS ===
+
+    fun startRemoteHostMode() {
+        remoteDevice.startHostMode()
+    }
+
+    fun connectRemoteDevice(targetIp: String, port: Int = 8765, inviteCode: String = "", pin: String = "") {
+        remoteDevice.connectAsController(targetIp, port, inviteCode, pin)
+    }
+
+    fun startRemoteSandbox(targetDeviceName: String = "Samsung Galaxy S24 Ultra") {
+        remoteDevice.startSandboxConnection(targetDeviceName)
+    }
+
+    fun regenerateRemoteInviteCode() {
+        remoteDevice.regenerateCodeAndPin()
+    }
+
+    fun refreshNetworkInfo() {
+        remoteDevice.refreshNetworkInfo()
+    }
+
+    fun sendRemoteAppLaunch(packageName: String, appName: String) {
+        remoteDevice.sendRemoteAppLaunch(packageName, appName)
+    }
+
+    fun sendRemoteVibrateAlert() {
+        remoteDevice.sendRemoteVibrationAlert()
+    }
+
+    fun sendRemoteTorchToggle() {
+        remoteDevice.sendRemoteTorchToggle()
+    }
+
+    fun sendRemoteClipboard(text: String) {
+        remoteDevice.sendRemoteClipboard(text)
+    }
+
+    fun sendRemoteFile(fileName: String, fileType: String, content: String) {
+        remoteDevice.sendFileToRemote(fileName, fileType, content)
+    }
+
+    fun sendRemoteDirective(directive: String) {
+        remoteDevice.sendRemoteDirective(directive)
+    }
+
+    fun simulateRemoteNavKey(key: String) {
+        remoteDevice.simulateRemoteKey(key)
+    }
+
+    fun terminateRemoteSession() {
+        remoteDevice.terminateSession()
+    }
+
     override fun onCleared() {
         super.onCleared()
+        remoteDevice.terminateSession()
         speaker.shutdown()
     }
 }

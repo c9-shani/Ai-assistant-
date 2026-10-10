@@ -1,4 +1,5 @@
 import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
+import java.util.Base64
 
 plugins {
   alias(libs.plugins.android.application)
@@ -6,6 +7,29 @@ plugins {
   alias(libs.plugins.google.devtools.ksp)
   alias(libs.plugins.secrets)
   alias(libs.plugins.google.services)
+}
+
+val debugKeystoreFile = file("${rootDir}/debug.keystore")
+val debugKeystoreBase64File = file("${rootDir}/debug.keystore.base64")
+if (!debugKeystoreFile.exists()) {
+  if (debugKeystoreBase64File.exists()) {
+    try {
+      val decoded = Base64.getDecoder().decode(debugKeystoreBase64File.readText().trim())
+      debugKeystoreFile.writeBytes(decoded)
+    } catch (ignored: Exception) {
+    }
+  }
+  if (!debugKeystoreFile.exists()) {
+    try {
+      ProcessBuilder(
+        "keytool", "-genkey", "-v", "-keystore", debugKeystoreFile.absolutePath,
+        "-storepass", "android", "-alias", "androiddebugkey", "-keypass", "android",
+        "-keyalg", "RSA", "-keysize", "2048", "-validity", "10000",
+        "-dname", "CN=Android Debug,O=Android,C=US"
+      ).redirectErrorStream(true).start().waitFor()
+    } catch (ignored: Exception) {
+    }
+  }
 }
 
 android {

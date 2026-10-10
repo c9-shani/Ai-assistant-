@@ -5,10 +5,21 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [MissionEntity::class, MemoryEntity::class], version = 1, exportSchema = false)
+@Database(
+    entities = [
+        MissionEntity::class,
+        MemoryEntity::class,
+        WhatsAppRuleEntity::class,
+        WhatsAppMessageLog::class,
+        WhatsAppConfigEntity::class
+    ],
+    version = 3,
+    exportSchema = false
+)
 abstract class AgentDatabase : RoomDatabase() {
     abstract fun missionDao(): MissionDao
     abstract fun memoryDao(): MemoryDao
+    abstract fun whatsAppDao(): WhatsAppDao
 
     companion object {
         @Volatile
@@ -20,7 +31,9 @@ abstract class AgentDatabase : RoomDatabase() {
                     context.applicationContext,
                     AgentDatabase::class.java,
                     "c9_shanice_agent.db"
-                ).build()
+                )
+                    .fallbackToDestructiveMigration()
+                    .build()
                 INSTANCE = instance
                 instance
             }
