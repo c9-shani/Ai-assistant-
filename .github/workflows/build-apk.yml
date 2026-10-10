@@ -40,8 +40,8 @@ jobs:
 
       - name: Build Debug APK with Gradle
         env:
-          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4096m -Dfile.encoding=UTF-8"
-        run: gradle assembleDebug --no-daemon --stacktrace
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4096m -Djava.awt.headless=true -Dfile.encoding=UTF-8"
+        run: gradle assembleDebug --no-daemon --stacktrace -Djava.awt.headless=true -Dkotlin.compiler.execution.strategy=in-process
 
       - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
