@@ -32,9 +32,9 @@ import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.FlashlightOn
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.UploadFile
@@ -44,7 +44,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
@@ -501,7 +501,7 @@ fun RemoteControlScreen(
                                     }
                                 }
 
-                                Divider(
+                                HorizontalDivider(
                                     color = CyberCardBorder.copy(alpha = 0.5f),
                                     modifier = Modifier.padding(vertical = 8.dp)
                                 )
@@ -786,7 +786,7 @@ fun RemoteControlScreen(
                                 shape = RoundedCornerShape(8.dp),
                                 modifier = Modifier.height(48.dp)
                             ) {
-                                Icon(Icons.Default.Send, contentDescription = "Send Directive", tint = Color.White)
+                                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send Directive", tint = Color.White)
                             }
                         }
                     }
@@ -841,7 +841,7 @@ fun RemoteControlScreen(
                             }
                         }
 
-                        Divider(color = CyberCardBorder, modifier = Modifier.padding(vertical = 10.dp))
+                        HorizontalDivider(color = CyberCardBorder, modifier = Modifier.padding(vertical = 10.dp))
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -1174,7 +1174,7 @@ fun RemoteControlScreen(
                             )
                         }
 
-                        Divider(color = CyberCardBorder, modifier = Modifier.padding(vertical = 8.dp))
+                        HorizontalDivider(color = CyberCardBorder, modifier = Modifier.padding(vertical = 8.dp))
 
                         sessionLogs.forEach { log ->
                             Row(

@@ -32,7 +32,7 @@ abstract class AgentDatabase : RoomDatabase() {
                     AgentDatabase::class.java,
                     "c9_shanice_agent.db"
                 )
-                    .fallbackToDestructiveMigration()
+                    .fallbackToDestructiveMigration(dropAllTables = true)
                     .build()
                 INSTANCE = instance
                 instance

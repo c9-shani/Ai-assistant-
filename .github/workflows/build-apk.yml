@@ -27,10 +27,23 @@ jobs:
         with:
           gradle-version: '9.3.1'
 
-      - name: Create fallback .env, keystore, and google-services
+      - name: Prepare environment variables and signing keystore
+        env:
+          GH_GEMINI_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GH_WHATSAPP_KEY: ${{ secrets.WHATSAPP_API_KEY }}
         run: |
-          touch .env
-          echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> .env
+          # Start from .env.example so all required properties exist with valid default values
+          cp .env.example .env
+
+          # If GitHub repository secret exists, override with real key
+          if [ -n "$GH_GEMINI_KEY" ]; then
+            sed -i "s|^GEMINI_API_KEY=.*|GEMINI_API_KEY=$GH_GEMINI_KEY|" .env
+          fi
+          if [ -n "$GH_WHATSAPP_KEY" ]; then
+            sed -i "s|^WHATSAPP_API_KEY=.*|WHATSAPP_API_KEY=$GH_WHATSAPP_KEY|" .env
+          fi
+
+          # Keystore setup for debug APK signing
           if [ -f "debug.keystore.base64" ] && [ ! -f "debug.keystore" ]; then
             base64 -d debug.keystore.base64 > debug.keystore || true
           fi
